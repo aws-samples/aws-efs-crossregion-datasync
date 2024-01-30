@@ -10,24 +10,29 @@ export class EfsStack extends Stack {
 
   public readonly efsFileSystemId: string;
   public readonly efsFileSystemArn: string;
+  public readonly efsSecurityGroup: ec2.SecurityGroup;
 
   constructor(scope: Construct, id: string, props: EfsStackProps) {
     super(scope, id, props);
 
-    const efsFileSystemSg = new ec2.SecurityGroup(this, 'EfsFileSystemSg', {
+    const efsSecurityGroup = new ec2.SecurityGroup(this, 'EfsSecurityGroup', {
       vpc: props.vpc,
     });
 
-    efsFileSystemSg.addIngressRule(ec2.Peer.ipv4(props.vpc.vpcCidrBlock), ec2.Port.tcp(2049), 'Allow NFS to EC2 instance');
+    // Allowed VPC CIDR range because EC2 securuity group is not created at this point
+    efsSecurityGroup.addIngressRule(ec2.Peer.ipv4(props.vpc.vpcCidrBlock), ec2.Port.tcp(2049), 'Allow NFS traffic from EC2 instances');
 
-    const efsFileSystem = new efs.FileSystem(this, "Efs", {
+    const fileSystem = new efs.FileSystem(this, 'EfsFileSystem', {
       vpc: props.vpc,
       lifecyclePolicy: efs.LifecyclePolicy.AFTER_14_DAYS,
+      performanceMode: efs.PerformanceMode.GENERAL_PURPOSE,
+      encrypted: true,
+      securityGroup: efsSecurityGroup,
       removalPolicy: RemovalPolicy.DESTROY,
-      securityGroup: efsFileSystemSg,
-      allowAnonymousAccess: true,
     });
-    this.efsFileSystemId = efsFileSystem.fileSystemId
-    this.efsFileSystemArn = efsFileSystem.fileSystemArn
+
+    this.efsFileSystemId = fileSystem.fileSystemId;
+    this.efsFileSystemArn = fileSystem.fileSystemArn;
+    this.efsSecurityGroup = efsSecurityGroup;
   }
 }

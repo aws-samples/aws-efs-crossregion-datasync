@@ -6,6 +6,7 @@ import { NagSuppressions } from 'cdk-nag';
 interface Ec2StackProps extends StackProps {
     vpc: ec2.Vpc;
     efsFileSystemId: string;
+    efsSecurityGroup: ec2.SecurityGroup;
 }
 
 export class Ec2Stack extends Stack {
@@ -30,6 +31,7 @@ export class Ec2Stack extends Stack {
             machineImage: ec2.MachineImage.latestAmazonLinux2(),
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             role: role,
+            securityGroup: props.efsSecurityGroup
         });
 
         this.ec2SgId = instance.connections.securityGroups[0].securityGroupId;

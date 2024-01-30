@@ -4,11 +4,10 @@ import * as cdk from 'aws-cdk-lib';
 import { EfsStack } from './stacks/efs-stack';
 import { VpcStack } from './stacks/vpc-stack';
 import { Ec2Stack } from './stacks/ec2-stack';
-import { DataSyncLocation } from './stacks/datasync-stack';
-import { DataSyncTask } from './stacks/datasync-stack';
+import { DataSyncLocationStack } from './stacks/datasync-stack';
+import { DataSyncTaskStack } from './stacks/datasync-stack';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { Aspects } from 'aws-cdk-lib';
-
 
 const app = new cdk.App();
 
@@ -28,7 +27,8 @@ const primaryEfs = new EfsStack(app, `EfsStack-${primaryRegion.region}`, {
 const primaryEc2 = new Ec2Stack(app, `Ec2Stack-${primaryRegion.region}`, {
     env: primaryRegion,
     vpc: primaryVPC.vpc,
-    efsFileSystemId: primaryEfs.efsFileSystemId
+    efsFileSystemId: primaryEfs.efsFileSystemId,
+    efsSecurityGroup: primaryEfs.efsSecurityGroup
 });
 
 const secondaryVPC = new VpcStack(app, `VpcStack-${secondaryRegion.region}`, {
@@ -43,34 +43,30 @@ const secondaryEfs = new EfsStack(app, `EfsStack-${secondaryRegion.region}`, {
 const secondaryEc2 = new Ec2Stack(app, `Ec2Stack-${secondaryRegion.region}`, {
     env: secondaryRegion,
     vpc: secondaryVPC.vpc,
-    efsFileSystemId: secondaryEfs.efsFileSystemId
+    efsFileSystemId: secondaryEfs.efsFileSystemId,
+    efsSecurityGroup: secondaryEfs.efsSecurityGroup
 });
 
-const datasyncPrimaryLocation = new DataSyncLocation(app, `DataSyncLocation-${primaryRegion.region}`, {
+const primaryDataSyncLocation = new DataSyncLocationStack(app, `DataSyncLocationStack-${primaryRegion.region}`, {
     env: primaryRegion,
-    vpc: primaryVPC.vpc,
-    ec2SgId: primaryEc2.ec2SgId,
-    dataSyncSubnetId: primaryVPC.dataSyncSubnetId,
-    efsFileSystemArn: primaryEfs.efsFileSystemArn
+    VpcStack: primaryVPC,
+    EfsStack: primaryEfs,
+    Ec2Stack: primaryEc2,
 });
 
-const datasyncSecondaryLocation = new DataSyncLocation(app, `DataSyncLocation-${secondaryRegion.region}`, {
+const secondaryDataSyncLocation = new DataSyncLocationStack(app, `DataSyncLocationStack-${secondaryRegion.region}`, {
     env: secondaryRegion,
-    vpc: secondaryVPC.vpc,
-    ec2SgId: secondaryEc2.ec2SgId,
-    dataSyncSubnetId: secondaryVPC.dataSyncSubnetId,
-    efsFileSystemArn: secondaryEfs.efsFileSystemArn
+    VpcStack: secondaryVPC,
+    EfsStack: secondaryEfs,
+    Ec2Stack: secondaryEc2,
 });
 
-new DataSyncTask(app, 'DataSyncTask', {
+new DataSyncTaskStack(app, 'DataSyncTaskStack', {
     env: primaryRegion,
     crossRegionReferences: true,
-    primaryDataSyncLocationArn: datasyncPrimaryLocation.EfsLocationArn,
-    secondaryDataSyncLocationArn: datasyncSecondaryLocation.EfsLocationArn,
+    sourceLocationArn: primaryDataSyncLocation.LocationArn,
+    destinationLocationArn: secondaryDataSyncLocation.LocationArn,
 });
-
-datasyncPrimaryLocation.addDependency(primaryEfs)
-datasyncSecondaryLocation.addDependency(secondaryEfs)
 
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }))
 

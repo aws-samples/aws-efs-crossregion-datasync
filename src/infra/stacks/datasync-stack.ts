@@ -1,65 +1,47 @@
-import { RemovalPolicy, Stack, StackProps } from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-import { aws_datasync as datasync } from 'aws-cdk-lib';
-import { aws_ec2 as ec2 } from 'aws-cdk-lib';
-import * as logs from 'aws-cdk-lib/aws-logs';
+// datasync-location-stack.ts
+import { Stack, StackProps } from 'aws-cdk-lib';
+import { Construct } from 'constructs'
+import { VpcStack } from './vpc-stack';
+import { EfsStack } from './efs-stack';
+import { Ec2Stack } from './ec2-stack';
+import { DataSyncLocationConstruct } from '../constructs/datasync/data-sync-location-construct';
+import { DataSyncTaskConstruct } from '../constructs/datasync/data-sync-task-construct';
 
-interface DataSyncLocationProps extends StackProps {
-    vpc: ec2.Vpc;
-    ec2SgId: string
-    efsFileSystemArn: string;
-    dataSyncSubnetId: string;
+interface DataSyncLocationStackProps extends StackProps {
+    VpcStack: VpcStack;
+    EfsStack: EfsStack;
+    Ec2Stack: Ec2Stack;
 }
 
-interface DataSyncTaskPros extends StackProps {
-    primaryDataSyncLocationArn: string;
-    secondaryDataSyncLocationArn: string;
-}
+export class DataSyncLocationStack extends Stack {
+    public readonly LocationArn: string;
 
-export class DataSyncLocation extends Stack {
-
-    public readonly EfsLocationArn: string;
-
-    constructor(scope: Construct, id: string, props: DataSyncLocationProps) {
+    constructor(scope: Construct, id: string, props: DataSyncLocationStackProps) {
         super(scope, id, props);
 
-        const datasyncSg = new ec2.SecurityGroup(this, 'DataSyncSg', {
-            vpc: props.vpc,
+        const Location = new DataSyncLocationConstruct(this, 'DataSyncLocation', {
+            vpc: props.VpcStack.vpc,
+            ec2SgId: props.Ec2Stack.ec2SgId,
+            efsFileSystemArn: props.EfsStack.efsFileSystemArn,
+            dataSyncSubnetId: props.VpcStack.dataSyncSubnetId
         });
 
-        datasyncSg.addIngressRule(ec2.Peer.securityGroupId(props.ec2SgId), ec2.Port.tcp(2049), 'Allow NFS from EC2 instance');
-
-        const dataSyncSgId = datasyncSg.securityGroupId
-
-        const EfsLocation = new datasync.CfnLocationEFS(this, 'EfsLocation', {
-            efsFilesystemArn: props.efsFileSystemArn,
-            inTransitEncryption: 'TLS1_2',
-            ec2Config: {
-                securityGroupArns: [`arn:aws:ec2:${Stack.of(this).region}:${Stack.of(this).account}:security-group/${dataSyncSgId}`],
-                subnetArn: `arn:aws:ec2:${Stack.of(this).region}:${Stack.of(this).account}:subnet/${props.dataSyncSubnetId}`,
-            },
-        });
-
-        this.EfsLocationArn = EfsLocation.attrLocationArn
+        this.LocationArn = Location.dataSyncLocationArn;
     }
 }
 
-export class DataSyncTask extends Stack {
-    constructor(scope: Construct, id: string, props: DataSyncTaskPros) {
+interface DataSyncTaskStackProps extends StackProps {
+    sourceLocationArn: string;
+    destinationLocationArn: string;
+}
+
+export class DataSyncTaskStack extends Stack {
+    constructor(scope: Construct, id: string, props: DataSyncTaskStackProps) {
         super(scope, id, props);
 
-        const dataSyncTaskLg = new logs.LogGroup(this, 'DataSyncLogGroup', {
-            removalPolicy: RemovalPolicy.DESTROY,
-            retention: logs.RetentionDays.ONE_WEEK,
-        });
-
-        const dataSyncTask = new datasync.CfnTask(this, 'DataSyncTask', {
-            sourceLocationArn: props.primaryDataSyncLocationArn,
-            destinationLocationArn: props.secondaryDataSyncLocationArn,
-            cloudWatchLogGroupArn: dataSyncTaskLg.logGroupArn,
-            options: {
-                logLevel: 'BASIC',
-            },
+        new DataSyncTaskConstruct(this, 'DataSyncTask', {
+            sourceLocationArn: props.sourceLocationArn,
+            destinationLocationArn: props.destinationLocationArn,
         });
     }
 }

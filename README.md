@@ -6,6 +6,14 @@ This project contains the AWS Cloud Development Kit (CDK) code for deploying AWS
 ## Architecture Diagram
 ![DataSync Architecture](./diagrams/DataSync.svg)
 
+## CDK Constructs
+### datasync-location.ts
+This construct creates the AWS DataSync Location resources. These locations define the source (EFS file system in the primary region) and destination (EFS file system in the secondary region) for the data transfer.
+
+### datasync-task.ts
+This construct creates the AWS DataSync Task resource. The task is responsible for transferring data between the source and destination locations. It includes configurations for scheduling, error handling, and data validation.
+
+
 ## CDK Stacks
 ### datasync-stack.ts
 This stack deploys the AWS DataSync resources necessary for the synchronization of data between EFS file systems. It includes configurations for data transfer tasks, scheduling, and monitoring.
